@@ -1,121 +1,74 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OsBrawl - Canlı Brawl Stars</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    body { background-color: #1a1a1a; color: white; font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 10px; }
-    canvas { background-color: #2e7d32; border: 4px solid #fff; border-radius: 8px; display: block; margin: 10px auto; }
-    #loginUI { margin-bottom: 10px; }
-    input, button { padding: 8px 12px; font-size: 16px; border-radius: 5px; border: none; }
-    button { background-color: #ff9800; color: white; cursor: pointer; font-weight: bold; }
-  </style>
-</head>
-<body>
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const { createClient } = require('@supabase/supabase-js');
 
-  <h1>OsBrawl Online Arena</h1>
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-  <div id="loginUI">
-    <input type="text" id="usernameInput" placeholder="Oyuncu Adı Girin" />
-    <button onclick="startGame()">Oyuna Katıl</button>
-  </div>
+// Supabase Bağlantısı
+const SUPABASE_URL = "https://dpksekpbbivsdixulejt.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_8kuO9R6_-JCDMIoIVz_2uA_HTpAteMS";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  <canvas id="gameCanvas" width="800" height="600" style="display:none;"></canvas>
+app.use(express.static('public'));
 
-  <script>
-    const socket = io();
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    let players = {};
-    let myId = null;
-    let myUsername = "";
-    let keys = {};
+let players = {};
 
-    function startGame() {
-      myUsername = document.getElementById('usernameInput').value.trim();
-      if (!myUsername) return alert("Kullanıcı adı girin!");
+io.on('connection', (socket) => {
+  console.log('Yeni oyuncu katıldı:', socket.id);
 
-      document.getElementById('loginUI').style.display = 'none';
-      canvas.style.display = 'block';
+  socket.on('joinGame', async (data) => {
+    const { username, brawler } = data;
 
-      socket.emit('joinGame', myUsername);
+    // Supabase kayıt/yükleme kontrolü
+    let { data: player } = await supabase
+      .from('players')
+      .select('*')
+      .eq('username', username)
+      .single();
+
+    if (!player) {
+      const { data: newPlayer } = await supabase
+        .from('players')
+        .insert([{ username: username, trophies: 0, gems: 10, coins: 100 }])
+        .select()
+        .single();
+      player = newPlayer;
     }
 
-    socket.on('connect', () => {
-      myId = socket.id;
-    });
+    players[socket.id] = {
+      id: socket.id,
+      username: username,
+      brawler: brawler || 'Shelly',
+      x: (Math.random() - 0.5) * 20,
+      z: (Math.random() - 0.5) * 20,
+      rotation: 0,
+      trophies: player ? player.trophies : 0
+    };
 
-    socket.on('currentPlayers', (serverPlayers) => {
-      players = serverPlayers;
-    });
+    socket.emit('currentPlayers', players);
+    socket.broadcast.emit('newPlayer', players[socket.id]);
+  });
 
-    socket.on('newPlayer', (player) => {
-      players[player.id] = player;
-    });
-
-    socket.on('playerMoved', (player) => {
-      if (players[player.id]) {
-        players[player.id].x = player.x;
-        players[player.id].y = player.y;
-      }
-    });
-
-    socket.on('playerDisconnected', (id) => {
-      delete players[id];
-    });
-
-    // Klavye Kontrolleri
-    window.addEventListener('keydown', (e) => keys[e.key] = true);
-    window.addEventListener('keyup', (e) => keys[e.key] = false);
-
-    function update() {
-      if (myId && players[myId]) {
-        let moved = false;
-        let speed = 4;
-
-        if (keys['ArrowLeft'] || keys['a']) { players[myId].x -= speed; moved = true; }
-        if (keys['ArrowRight'] || keys['d']) { players[myId].x += speed; moved = true; }
-        if (keys['ArrowUp'] || keys['w']) { players[myId].y -= speed; moved = true; }
-        if (keys['ArrowDown'] || keys['s']) { players[myId].y += speed; moved = true; }
-
-        if (moved) {
-          socket.emit('playerMovement', { x: players[myId].x, y: players[myId].y });
-        }
-      }
+  socket.on('playerMovement', (movementData) => {
+    if (players[socket.id]) {
+      players[socket.id].x = movementData.x;
+      players[socket.id].z = movementData.z;
+      players[socket.id].rotation = movementData.rotation;
+      
+      io.emit('playerMoved', players[socket.id]);
     }
+  });
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+  socket.on('disconnect', () => {
+    delete players[socket.id];
+    io.emit('playerDisconnected', socket.id);
+  });
+});
 
-      // Tüm oyuncuları çiz
-      for (let id in players) {
-        let p = players[id];
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
-        ctx.fillStyle = p.color || 'blue';
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#fff';
-        ctx.stroke();
-
-        // Oyuncu Adını Yaz
-        ctx.fillStyle = 'white';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(p.username, p.x, p.y - 25);
-      }
-    }
-
-    function gameLoop() {
-      update();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
-  </script>
-</body>
-</html>
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`OsBrawl 3D Sunucusu ${PORT} portunda çalışıyor!`);
+});
