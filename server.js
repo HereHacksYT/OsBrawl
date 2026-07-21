@@ -7,23 +7,23 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Supabase Bilgilerin
+// Supabase Bağlantısı
 const SUPABASE_URL = "https://dpksekpbbivsdixulejt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_8kuO9R6_-JCDMIoIVz_2uA_HTpAteMS";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 app.use(express.static('public'));
 
-// Oyundaki Aktif Oyuncular (Haritadaki Konumları)
 let players = {};
 
 io.on('connection', (socket) => {
-  console.log('Yeni oyuncu bağlandı:', socket.id);
+  console.log('Yeni oyuncu katıldı:', socket.id);
 
-  // Oyuncu Oyuna Katıldığında
-  socket.on('joinGame', async (username) => {
-    // Supabase'den oyuncu verisini çek veya yeni kaydet
-    let { data: player, error } = await supabase
+  socket.on('joinGame', async (data) => {
+    const { username, brawler } = data;
+
+    // Supabase kayıt/yükleme kontrolü
+    let { data: player } = await supabase
       .from('players')
       .select('*')
       .eq('username', username)
@@ -38,34 +38,31 @@ io.on('connection', (socket) => {
       player = newPlayer;
     }
 
-    // Oyuncuyu haritada rastgele bir konuma koy
     players[socket.id] = {
       id: socket.id,
       username: username,
-      x: Math.floor(Math.random() * 700) + 50,
-      y: Math.floor(Math.random() * 500) + 50,
-      color: '#' + Math.floor(Math.random()*16777215).toString(16),
+      brawler: brawler || 'Shelly',
+      x: (Math.random() - 0.5) * 20,
+      z: (Math.random() - 0.5) * 20,
+      rotation: 0,
       trophies: player ? player.trophies : 0
     };
 
-    // Mevcut oyunculara yeni oyuncuyu haber ver
     socket.emit('currentPlayers', players);
     socket.broadcast.emit('newPlayer', players[socket.id]);
   });
 
-  // Oyuncu Hareket Ettiğinde (Anlık Canlı Konum Güncellemesi)
   socket.on('playerMovement', (movementData) => {
     if (players[socket.id]) {
       players[socket.id].x = movementData.x;
-      players[socket.id].y = movementData.y;
-      // Diğer tüm oyunculara hareket bilgisini gönder
+      players[socket.id].z = movementData.z;
+      players[socket.id].rotation = movementData.rotation;
+      
       io.emit('playerMoved', players[socket.id]);
     }
   });
 
-  // Oyuncu Ayrıldığında
   socket.on('disconnect', () => {
-    console.log('Oyuncu ayrıldı:', socket.id);
     delete players[socket.id];
     io.emit('playerDisconnected', socket.id);
   });
@@ -73,5 +70,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`OsBrawl sunucusu ${PORT} portunda çalışıyor!`);
+  console.log(`OsBrawl 3D Sunucusu ${PORT} portunda çalışıyor!`);
 });
