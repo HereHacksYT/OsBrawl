@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OsBrawl - Canlı Brawl Stars</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { background-color: #1a1a1a; color: white; font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 10px; }
+    canvas { background-color: #2e7d32; border: 4px solid #fff; border-radius: 8px; display: block; margin: 10px auto; }
+    #loginUI { margin-bottom: 10px; }
+    input, button { padding: 8px 12px; font-size: 16px; border-radius: 5px; border: none; }
+    button { background-color: #ff9800; color: white; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <h1>OsBrawl Online Arena</h1>
+
+  <div id="loginUI">
+    <input type="text" id="usernameInput" placeholder="Oyuncu Adı Girin" />
+    <button onclick="startGame()">Oyuna Katıl</button>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600" style="display:none;"></canvas>
+
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let players = {};
+    let myId = null;
+    let myUsername = "";
+    let keys = {};
+
+    function startGame() {
+      myUsername = document.getElementById('usernameInput').value.trim();
+      if (!myUsername) return alert("Kullanıcı adı girin!");
+
+      document.getElementById('loginUI').style.display = 'none';
+      canvas.style.display = 'block';
+
+      socket.emit('joinGame', myUsername);
+    }
+
+    socket.on('connect', () => {
+      myId = socket.id;
+    });
+
+    socket.on('currentPlayers', (serverPlayers) => {
+      players = serverPlayers;
+    });
+
+    socket.on('newPlayer', (player) => {
+      players[player.id] = player;
+    });
+
+    socket.on('playerMoved', (player) => {
+      if (players[player.id]) {
+        players[player.id].x = player.x;
+        players[player.id].y = player.y;
+      }
+    });
+
+    socket.on('playerDisconnected', (id) => {
+      delete players[id];
+    });
+
+    // Klavye Kontrolleri
+    window.addEventListener('keydown', (e) => keys[e.key] = true);
+    window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+    function update() {
+      if (myId && players[myId]) {
+        let moved = false;
+        let speed = 4;
+
+        if (keys['ArrowLeft'] || keys['a']) { players[myId].x -= speed; moved = true; }
+        if (keys['ArrowRight'] || keys['d']) { players[myId].x += speed; moved = true; }
+        if (keys['ArrowUp'] || keys['w']) { players[myId].y -= speed; moved = true; }
+        if (keys['ArrowDown'] || keys['s']) { players[myId].y += speed; moved = true; }
+
+        if (moved) {
+          socket.emit('playerMovement', { x: players[myId].x, y: players[myId].y });
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Tüm oyuncuları çiz
+      for (let id in players) {
+        let p = players[id];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = p.color || 'blue';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+
+        // Oyuncu Adını Yaz
+        ctx.fillStyle = 'white';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.username, p.x, p.y - 25);
+      }
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
