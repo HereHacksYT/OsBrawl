@@ -5,112 +5,147 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>OsBrawl 3D - Brawl Stars</title>
   
-  <!-- Three.js (3D Motoru) & Socket.io & Nipple.js (Mobil Joystick) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body { background-color: #0b0e14; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+    body { background: #0b0e14; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
 
-    /* Karakter Seçim & Lobi Ekranı */
     #ui-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: rgba(15, 23, 42, 0.95); z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(15, 23, 42, 0.97); z-index: 10;
     }
     .lobby-card {
-      background: #1e293b; border: 3px solid #38bdf8; border-radius: 16px;
-      padding: 24px; text-align: center; width: 90%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      background: #1e293b; border: 3px solid #38bdf8; border-radius: 20px;
+      padding: 28px; width: 90%; max-width: 400px; box-shadow: 0 15px 30px rgba(0,0,0,0.7);
     }
-    h1 { color: #facc15; font-size: 32px; margin-bottom: 15px; text-shadow: 2px 2px #000; }
+    h1 { color: #facc15; font-size: 36px; margin-bottom: 15px; text-align: center; text-shadow: 2px 2px #000; }
     input {
-      width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #475569;
-      background: #0f172a; color: #fff; font-size: 16px; text-align: center; margin-bottom: 15px;
+      width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #475569;
+      background: #0f172a; color: #fff; font-size: 16px; text-align: center; margin-bottom: 18px;
     }
     .brawler-select { display: flex; justify-content: space-around; margin-bottom: 20px; }
     .brawler-option {
-      border: 2px solid #475569; border-radius: 10px; padding: 10px; cursor: pointer;
-      background: #0f172a; width: 30%; font-weight: bold; transition: 0.2s;
+      border: 2px solid #475569; border-radius: 12px; padding: 12px 8px; cursor: pointer;
+      background: #0f172a; width: 30%; font-weight: bold; transition: 0.2s; text-align: center;
     }
     .brawler-option.selected { border-color: #facc15; background: #334155; transform: scale(1.05); }
     .play-btn {
-      width: 100%; padding: 14px; border: none; border-radius: 8px;
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
       background: #22c55e; color: #fff; font-size: 20px; font-weight: bold; cursor: pointer;
       box-shadow: 0 4px 0 #15803d;
     }
     .play-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #15803d; }
 
-    /* Mobil Controls (Joystick Alanı) */
-    #joystick-zone {
-      position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px;
-      z-index: 5; display: none;
+    #game-ui {
+      display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     }
+    #health-bar-container {
+      position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%);
+      width: 220px; height: 16px; background: #1e293b; border: 2px solid white; border-radius: 10px;
+    }
+    #health-fill {
+      width: 100%; height: 100%; background: #22c55e; border-radius: 8px; transition: width 0.1s;
+    }
+    #trophy-display {
+      position: absolute; top: 15px; left: 15px; font-size: 18px; font-weight: bold; background: #00000088; padding: 6px 14px; border-radius: 20px;
+    }
+    #shoot-button {
+      display: none; position: absolute; bottom: 40px; right: 30px;
+      width: 90px; height: 90px; background: #ef4444; border: 4px solid white;
+      border-radius: 50%; font-weight: bold; color: white; font-size: 18px; box-shadow: 0 6px 0 #991b1b;
+    }
+    #shoot-button:active { transform: translateY(3px); box-shadow: 0 3px 0 #991b1b; }
+    #joystick-zone { position: absolute; bottom: 40px; left: 30px; width: 130px; height: 130px; z-index: 5; }
   </style>
 </head>
 <body>
 
-  <!-- LOBİ & KARAKTER SEÇİM EKRANI -->
   <div id="ui-overlay">
     <div class="lobby-card">
       <h1>OsBrawl 3D</h1>
       <input type="text" id="usernameInput" placeholder="Oyuncu Adı" maxlength="12">
-      
-      <p style="margin-bottom: 8px; color: #94a3b8;">Brawler Seç:</p>
+      <p style="margin-bottom: 10px; color: #94a3b8;">Brawler Seç:</p>
       <div class="brawler-select">
         <div class="brawler-option selected" onclick="selectBrawler('Shelly', this)" style="color:#a855f7;">Shelly</div>
         <div class="brawler-option" onclick="selectBrawler('Colt', this)" style="color:#38bdf8;">Colt</div>
         <div class="brawler-option" onclick="selectBrawler('El Primo', this)" style="color:#ef4444;">El Primo</div>
       </div>
-
       <button class="play-btn" onclick="startGame()">OYUNA BAŞLA</button>
     </div>
   </div>
 
-  <!-- Mobil Joystick Alanı -->
+  <div id="game-ui">
+    <div id="trophy-display">🏆 0</div>
+    <div id="health-bar-container">
+      <div id="health-fill"></div>
+    </div>
+    <button id="shoot-button" ontouchstart="startShooting()" ontouchend="stopShooting()">ATIŞ</button>
+  </div>
   <div id="joystick-zone"></div>
 
   <script>
     const socket = io();
     let selectedBrawler = 'Shelly';
-    let myId = null;
-    let myUsername = "";
-    
-    // Three.js Değişkenleri
-    let scene, camera, renderer;
-    let playerMeshes = {};
+    let myId = null, myUsername = "";
     let keys = {};
     let moveVector = { x: 0, z: 0 };
+    let isShooting = false;
+    
+    // Three.js
+    let scene, camera, renderer;
+    let playerMeshes = {};
+    let bulletMeshes = {};
+    let wallMeshes = [];
 
     function selectBrawler(name, el) {
       selectedBrawler = name;
-      document.querySelectorAll('.brawler-option').forEach(opt => opt.classList.remove('selected'));
+      document.querySelectorAll('.brawler-option').forEach(o => o.classList.remove('selected'));
       el.classList.add('selected');
     }
 
     function init3D() {
-      // Sahne Oluştur
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x10b981); // Brawl Stars Yeşil Çim Saha
+      scene.background = new THREE.Color(0x2d5a27);
 
-      // Kamera (Brawl Stars İzometrik Açısı)
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 25, 18);
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 28, 22);
       camera.lookAt(0, 0, 0);
 
-      // Işıklandırma
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-      scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(10, 30, 10);
-      scene.add(dirLight);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.5);
+      dir.position.set(15, 30, 15);
+      scene.add(dir);
 
-      // Arena Zemini
-      const gridHelper = new THREE.GridHelper(50, 25, 0x059669, 0x047857);
-      scene.add(gridHelper);
+      // Zemin
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(30, 30),
+        new THREE.MeshLambertMaterial({ color: 0x3a7d32 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.01;
+      scene.add(floor);
 
-      // Render Motoru
+      // Duvarlar
+      const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x8B5A2B });
+      const walls = [
+        { x: -10, z: -10, w: 20, d: 2 },
+        { x: -10, z: 8, w: 20, d: 2 },
+        { x: -12, z: -10, w: 2, d: 20 },
+        { x: 10, z: -10, w: 2, d: 20 },
+        { x: -4, z: -2, w: 8, d: 1.5 },
+        { x: -1, z: -8, w: 1.5, d: 6 }
+      ];
+      walls.forEach(w => {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(w.w, 1.2, w.d), wallMaterial);
+        box.position.set(w.x, 0.6, w.z);
+        scene.add(box);
+        wallMeshes.push(box);
+      });
+
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
@@ -120,153 +155,214 @@
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
+
+      // Canvas sağlık barı sprite'ları için ortak yapı
+      window.healthTextures = {};
     }
 
-    // Brawler 3D Modeli (Karaktere göre renk değişir)
-    function createBrawlerMesh(brawlerName) {
+    function createBrawlerMesh(brawler) {
       const group = new THREE.Group();
-      let color = 0xa855f7; // Shelly
-      if (brawlerName === 'Colt') color = 0x38bdf8;
-      if (brawlerName === 'El Primo') color = 0xef4444;
+      let color = 0xa855f7;
+      if (brawler === 'Colt') color = 0x38bdf8;
+      if (brawler === 'El Primo') { color = 0xef4444; }
 
-      // Gövde
-      const bodyGeo = new THREE.CylinderGeometry(0.6, 0.6, 1.5, 16);
-      const bodyMat = new THREE.MeshLambertMaterial({ color: color });
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(brawler==='El Primo'?0.8:0.6, brawler==='El Primo'?0.8:0.6, 1.5, 12),
+        new THREE.MeshLambertMaterial({ color })
+      );
       body.position.y = 0.75;
       group.add(body);
 
-      // Göz/Yön Belirteci (Ön tarafını anlamak için)
-      const eyeGeo = new THREE.BoxGeometry(0.4, 0.2, 0.3);
-      const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.3), new THREE.MeshBasicMaterial({color:0xffffff}));
       eye.position.set(0, 1.1, -0.5);
       group.add(eye);
 
       return group;
     }
 
-    function setupJoystick() {
-      document.getElementById('joystick-zone').style.display = 'block';
-      const manager = nipplejs.create({
-        zone: document.getElementById('joystick-zone'),
-        mode: 'static',
-        position: { left: '60px', bottom: '60px' },
-        color: 'white'
-      });
+    function createHealthSprite(player) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64; canvas.height = 10;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0,0,64,10);
+      const healthPercent = player.health / player.maxHealth;
+      ctx.fillStyle = healthPercent > 0.6 ? '#22c55e' : (healthPercent > 0.3 ? '#facc15' : '#ef4444');
+      ctx.fillRect(0,0,64 * healthPercent,10);
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0,0,64,10);
 
-      manager.on('move', (evt, data) => {
-        if (data.vector) {
-          moveVector.x = data.vector.x;
-          moveVector.z = -data.vector.y;
-        }
-      });
-
-      manager.on('end', () => {
-        moveVector.x = 0;
-        moveVector.z = 0;
-      });
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(2, 0.4, 1);
+      sprite.position.y = 1.9;
+      return sprite;
     }
 
-    function startGame() {
-      myUsername = document.getElementById('usernameInput').value.trim();
-      if (!myUsername) return alert("Lütfen bir kullanıcı adı girin!");
-
-      document.getElementById('ui-overlay').style.display = 'none';
-
-      init3D();
-      setupJoystick();
-
-      socket.emit('joinGame', { username: myUsername, brawler: selectedBrawler });
-      
-      // Klavye Dinleyicileri (PC için)
-      window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-      window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
-      animate();
+    function updateHealthSprite(mesh, player) {
+      if (!mesh.userData.healthSprite) return;
+      const sprite = mesh.userData.healthSprite;
+      const canvas = sprite.material.map.image;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,64,10);
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0,0,64,10);
+      const hp = player.health / player.maxHealth;
+      ctx.fillStyle = hp > 0.6 ? '#22c55e' : (hp > 0.3 ? '#facc15' : '#ef4444');
+      ctx.fillRect(0,0,64 * hp,10);
+      ctx.strokeStyle = 'white';
+      ctx.strokeRect(0,0,64,10);
+      sprite.material.map.needsUpdate = true;
     }
-
-    // Socket Olayları
-    socket.on('connect', () => { myId = socket.id; });
-
-    socket.on('currentPlayers', (serverPlayers) => {
-      for (let id in serverPlayers) {
-        if (!playerMeshes[id]) addPlayerToScene(serverPlayers[id]);
-      }
-    });
-
-    socket.on('newPlayer', (player) => {
-      if (!playerMeshes[player.id]) addPlayerToScene(player);
-    });
-
-    socket.on('playerMoved', (player) => {
-      if (playerMeshes[player.id]) {
-        playerMeshes[player.id].position.x = player.x;
-        playerMeshes[player.id].position.z = player.z;
-        playerMeshes[player.id].rotation.y = player.rotation;
-      }
-    });
-
-    socket.on('playerDisconnected', (id) => {
-      if (playerMeshes[id]) {
-        scene.remove(playerMeshes[id]);
-        delete playerMeshes[id];
-      }
-    });
 
     function addPlayerToScene(player) {
       const mesh = createBrawlerMesh(player.brawler);
       mesh.position.set(player.x, 0, player.z);
+      const sprite = createHealthSprite(player);
+      mesh.add(sprite);
+      mesh.userData.healthSprite = sprite;
       scene.add(mesh);
       playerMeshes[player.id] = mesh;
     }
 
-    function updateLogic() {
-      if (myId && playerMeshes[myId]) {
-        let speed = 0.15;
-        let dx = 0, dz = 0;
+    // Oyun Başlatma
+    function startGame() {
+      myUsername = document.getElementById('usernameInput').value.trim();
+      if (!myUsername) return alert("İsim girin!");
 
-        // PC Klavye Kontrolü
-        if (keys['a'] || keys['arrowleft']) dx -= speed;
-        if (keys['d'] || keys['arrowright']) dx += speed;
-        if (keys['w'] || keys['arrowup']) dz -= speed;
-        if (keys['s'] || keys['arrowdown']) dz += speed;
+      document.getElementById('ui-overlay').style.display = 'none';
+      document.getElementById('game-ui').style.display = 'block';
 
-        // Mobil Joystick Kontrolü
-        if (moveVector.x !== 0 || moveVector.z !== 0) {
-          dx = moveVector.x * speed;
-          dz = moveVector.z * speed;
-        }
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        document.getElementById('shoot-button').style.display = 'block';
+      } else {
+        window.addEventListener('mousedown', (e) => { if(e.button === 0) startShooting(); });
+        window.addEventListener('mouseup', (e) => { if(e.button === 0) stopShooting(); });
+      }
 
-        if (dx !== 0 || dz !== 0) {
-          const myMesh = playerMeshes[myId];
-          myMesh.position.x += dx;
-          myMesh.position.z += dz;
-          
-          // Yön Açısını Hesapla
-          const angle = Math.atan2(-dx, -dz);
-          myMesh.rotation.y = angle;
+      init3D();
+      setupJoystick();
+      socket.emit('joinGame', { username: myUsername, brawler: selectedBrawler });
 
-          // Kamerayı Oyuncuyu Takip Edecek Şekilde Kaydır
-          camera.position.x = myMesh.position.x;
-          camera.position.z = myMesh.position.z + 18;
+      window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+      window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+      animate();
+    }
 
-          // Sunucuya Hareket Bilgisini Gönder
-          socket.emit('playerMovement', {
-            x: myMesh.position.x,
-            z: myMesh.position.z,
-            rotation: myMesh.rotation.y
-          });
-        }
+    function setupJoystick() {
+      document.getElementById('joystick-zone').style.display = 'block';
+      nipplejs.create({
+        zone: document.getElementById('joystick-zone'),
+        mode: 'static',
+        position: { left: '65px', bottom: '65px' },
+        color: 'white'
+      }).on('move', (_, data) => {
+        if (data.vector) { moveVector.x = data.vector.x; moveVector.z = -data.vector.y; }
+      }).on('end', () => { moveVector.x = 0; moveVector.z = 0; });
+    }
+
+    function startShooting() { isShooting = true; }
+    function stopShooting() { isShooting = false; }
+
+    // Socket Dinleyicileri
+    socket.on('currentPlayers', (serverPlayers) => {
+      for (let id in serverPlayers) if (!playerMeshes[id]) addPlayerToScene(serverPlayers[id]);
+    });
+    socket.on('newPlayer', (p) => { if (!playerMeshes[p.id]) addPlayerToScene(p); });
+    socket.on('playerMoved', (p) => {
+      if (playerMeshes[p.id]) {
+        playerMeshes[p.id].position.x = p.x;
+        playerMeshes[p.id].position.z = p.z;
+        playerMeshes[p.id].rotation.y = p.rotation;
+      }
+    });
+    socket.on('playerDisconnected', (id) => {
+      if (playerMeshes[id]) { scene.remove(playerMeshes[id]); delete playerMeshes[id]; }
+    });
+
+    socket.on('bulletCreated', (bullet) => {
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 6, 6),
+        new THREE.MeshBasicMaterial({ color: bullet.brawler === 'El Primo' ? 0xffaa00 : 0xffdd44 })
+      );
+      sphere.position.set(bullet.x, 0.7, bullet.z);
+      scene.add(sphere);
+      bulletMeshes[bullet.id] = sphere;
+    });
+
+    socket.on('bulletsUpdate', (activeBullets) => {
+      for (let id in bulletMeshes) {
+        const found = activeBullets.find(b => b.id == id);
+        if (!found) { scene.remove(bulletMeshes[id]); delete bulletMeshes[id]; }
+      }
+      activeBullets.forEach(b => {
+        if (bulletMeshes[b.id]) bulletMeshes[b.id].position.set(b.x, 0.7, b.z);
+      });
+    });
+
+    socket.on('bulletDestroyed', (id) => {
+      if (bulletMeshes[id]) { scene.remove(bulletMeshes[id]); delete bulletMeshes[id]; }
+    });
+
+    socket.on('playerDamaged', ({ id, health }) => {
+      if (playerMeshes[id]) updateHealthSprite(playerMeshes[id], { health, maxHealth: playerMeshes[id].userData.maxHealth || 100 });
+      if (id === myId) {
+        document.getElementById('health-fill').style.width = (health / 100 * 100) + '%';
+      }
+    });
+
+    socket.on('playerKilled', ({ victimId }) => {
+      if (playerMeshes[victimId]) playerMeshes[victimId].visible = false;
+    });
+
+    socket.on('playerRespawned', (player) => {
+      if (playerMeshes[player.id]) {
+        playerMeshes[player.id].position.set(player.x, 0, player.z);
+        playerMeshes[player.id].visible = true;
+        updateHealthSprite(playerMeshes[player.id], player);
+      }
+    });
+
+    socket.on('trophyUpdate', (trophies) => {
+      document.getElementById('trophy-display').innerText = `🏆 ${trophies}`;
+    });
+
+    function updatePlayer() {
+      if (!myId || !playerMeshes[myId] || !playerMeshes[myId].visible) return;
+
+      let dx = 0, dz = 0, speed = 0.13;
+      if (keys['a'] || keys['arrowleft']) dx -= speed;
+      if (keys['d'] || keys['arrowright']) dx += speed;
+      if (keys['w'] || keys['arrowup']) dz -= speed;
+      if (keys['s'] || keys['arrowdown']) dz += speed;
+      if (moveVector.x || moveVector.z) { dx = moveVector.x * speed; dz = moveVector.z * speed; }
+
+      if (dx !== 0 || dz !== 0) {
+        const mesh = playerMeshes[myId];
+        mesh.position.x += dx;
+        mesh.position.z += dz;
+        mesh.rotation.y = Math.atan2(dx, dz);
+        camera.position.x = mesh.position.x;
+        camera.position.z = mesh.position.z + 18;
+        socket.emit('playerMovement', { x: mesh.position.x, z: mesh.position.z, rotation: mesh.rotation.y });
+      }
+
+      if (isShooting) {
+        const dir = {
+          x: Math.sin(playerMeshes[myId].rotation.y),
+          z: Math.cos(playerMeshes[myId].rotation.y)
+        };
+        socket.emit('shoot', { direction: dir });
       }
     }
 
     function animate() {
       requestAnimationFrame(animate);
-      updateLogic();
-      if (renderer && scene && camera) {
-        renderer.render(scene, camera);
-      }
+      updatePlayer();
+      renderer.render(scene, camera);
     }
   </script>
 </body>
